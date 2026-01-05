@@ -20,10 +20,11 @@ const (
 	videoExt = ".mp4"
 	// inputsFile is the temporary file used by ffmpeg for concatenation.
 	inputsFile = "inputs.txt"
-	// datePattern is the regex pattern for extracting dates from filenames.
-	datePattern = `(\d{1,2})-(\d{1,2})-(\d{4})`
-	// dateFormat is the Go time format for parsing dates from filenames.
-	dateFormat = "1-2-2006"
+	// datePattern is the regex pattern for extracting dates and times from filenames.
+	// Pattern: "M-D-YYYY, HH.MM.SS" or "M-D-YYYY, HH:MM:SS"
+	dateTimePattern = `(\d{1,2})-(\d{1,2})-(\d{4}),\s+(\d{2})[.:](\d{2})[.:](\d{2})`
+	// dateTimeFormat is the Go time format for parsing dates and times from filenames.
+	dateTimeFormat = "1-2-2006, 15:04:05"
 	// minSpeedFactor is the minimum allowed speed factor.
 	minSpeedFactor = 0.1
 	// maxSpeedFactor is the maximum allowed speed factor.
@@ -195,19 +196,19 @@ func runFFmpeg(ffmpegPath, inputsFile, outputFile string, useGPU bool, speed flo
 	return cmd.Run()
 }
 
-// extractDateFromPath extracts the date from a video filename for chronological sorting.
-// It looks for a date pattern (M-D-YYYY) in the filename. If parsing fails,
-// it falls back to the file's modification time. Returns the zero time if all methods fail.
-// Pattern: "Camera Name M-D-YYYY, HH.MM.SS GMT+X"
+// extractDateFromPath extracts the date and time from a video filename for chronological sorting.
+// It looks for a date-time pattern (M-D-YYYY, HH.MM.SS or M-D-YYYY, HH:MM:SS) in the filename.
+// If parsing fails, it falls back to the file's modification time. Returns the zero time if all methods fail.
+// Pattern: "Camera Name M-D-YYYY, HH.MM.SS GMT+X - M-D-YYYY, HH.MM.SS GMT+X"
 func extractDateFromPath(filePath string) time.Time {
 	filename := filepath.Base(filePath)
-	// Extract the first date in format M-D-YYYY
-	re := regexp.MustCompile(datePattern)
+	// Extract the first date and time in format M-D-YYYY, HH.MM.SS or M-D-YYYY, HH:MM:SS
+	re := regexp.MustCompile(dateTimePattern)
 	matches := re.FindStringSubmatch(filename)
-	if len(matches) == 4 {
-		// Parse date as M-D-YYYY
-		dateStr := fmt.Sprintf("%s-%s-%s", matches[1], matches[2], matches[3])
-		t, err := time.Parse(dateFormat, dateStr)
+	if len(matches) == 7 {
+		// Reconstruct the date-time string, normalizing time separators to colons
+		dateTimeStr := fmt.Sprintf("%s-%s-%s, %s:%s:%s", matches[1], matches[2], matches[3], matches[4], matches[5], matches[6])
+		t, err := time.Parse(dateTimeFormat, dateTimeStr)
 		if err == nil {
 			return t
 		}
